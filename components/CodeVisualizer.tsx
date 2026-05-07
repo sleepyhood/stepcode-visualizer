@@ -373,20 +373,23 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
           </section>
 
         {/* 3. 미리보기부 (Preview Canvas) */}
-          <section className="flex-1 bg-neutral-300 p-8 overflow-y-auto flex items-center justify-center min-w-0">
+          <section 
+            id="preview-container"
+            className="flex-1 bg-neutral-300 overflow-auto relative flex items-center justify-center min-w-0"
+          >
             
-{/* Zoom Wrapper (시각적 확대/축소만 담당하며 캡처 화질에는 영향을 주지 않음) */}
+            {/* Zoom Wrapper (시각적 확대/축소만 담당하며 캡처 화질에는 영향을 주지 않음) */}
             <div 
               className="transition-transform duration-75 origin-center"
               style={{ transform: `scale(${zoomScale})` }}
             >
-
-            {/* 캡처 대상 영역 (배경색 강제 부여로 투명화 방지 및 동적 패딩 적용) */}
-            <div 
-              id="capture-target" 
-              className="w-full transition-all duration-300 flex flex-col gap-4 bg-[#e5e5e5]"
-              style={{ padding: `${padding}px`, maxWidth: `${containerWidth}px` }}
-            >
+              {/* 캡처 대상 영역 (원본 해상도 유지) */}
+              <div 
+                id="capture-target" 
+                className="w-full transition-all duration-300 flex flex-col shrink-0 gap-4 bg-[#e5e5e5]"
+                style={{ padding: `${padding}px`, maxWidth: `${containerWidth}px` }}
+              >
+                 
                {/* 코드 블록 그리드 */}
               {!highlighter ? (
                 <div className="text-center text-neutral-500 font-medium">Shiki 엔진 로딩 중...</div>
