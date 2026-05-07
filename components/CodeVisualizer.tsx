@@ -104,12 +104,15 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
     setDraggedLang(null);
   };
 
-  const handleDownloadImage = useCallback(async () => {
+ const handleDownloadImage = useCallback(async () => {
     if (isExporting) return; // 중복 실행 방지
-    const node = document.getElementById('capture-target');
+    const node = document.getElementById('capture-target'); // Mermaid의 경우 'mermaid-capture-target'
     if (!node) return;
     try {
       setIsExporting(true);
+      // 💡 핵심: 줌 배율이 100%로 초기화된 DOM이 화면에 반영될 때까지 대기 (화질 깨짐 방지)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      
       const dataUrl = await toPng(node, { pixelRatio: 2 }); // 고해상도 캡처
       const link = document.createElement('a');
       link.download = 'stepcode_snippet.png';
@@ -122,13 +125,16 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
     }
   }, [isExporting]);
 
-  const handleCopyToClipboard = useCallback(async () => {
+ const handleCopyToClipboard = useCallback(async () => {
     if (isExporting) return; // 중복 실행 방지
-    const node = document.getElementById('capture-target');
+    const node = document.getElementById('capture-target'); // Mermaid의 경우 'mermaid-capture-target'
     if (!node) return;
     try {
       setCopyStatus('idle');
       setIsExporting(true);
+      // 💡 핵심: 줌 배율이 100%로 초기화된 DOM이 화면에 반영될 때까지 대기
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      
       const blob = await toBlob(node, { pixelRatio: 2 });
       if (blob) {
         await navigator.clipboard.write([
@@ -374,18 +380,19 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
 
         {/* 3. 미리보기부 (Preview Canvas) */}
           <section 
-            id="preview-container"
-            className="flex-1 bg-neutral-300 overflow-auto relative flex items-center justify-center min-w-0"
+            id="preview-container" // Mermaid의 경우 'mermaid-preview-container'
+            className="flex-1 bg-neutral-300 overflow-auto relative flex"
           >
             
-            {/* Zoom Wrapper (시각적 확대/축소만 담당하며 캡처 화질에는 영향을 주지 않음) */}
+            {/* Zoom Wrapper (CSS zoom을 사용하여 실제 레이아웃 크기를 변경해 스크롤바 활성화) */}
+            {/* 💡 isExporting 상태일 때는 강제로 100%(1)로 되돌려 캡처 화질을 100% 원본으로 보장 */}
             <div 
-              className="transition-transform duration-75 origin-center"
-              style={{ transform: `scale(${zoomScale})` }}
+              className="m-auto p-8 transition-all duration-75"
+              style={{ zoom: isExporting ? 1 : zoomScale }}
             >
-              {/* 캡처 대상 영역 (원본 해상도 유지) */}
+              {/* 캡처 대상 영역 */}
               <div 
-                id="capture-target" 
+                id="capture-target"
                 className="w-full transition-all duration-300 flex flex-col shrink-0 gap-4 bg-[#e5e5e5]"
                 style={{ padding: `${padding}px`, maxWidth: `${containerWidth}px` }}
               >
