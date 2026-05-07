@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Settings, Image as ImageIcon, Terminal, Copy, Check } from 'lucide-react';
+import { Settings, Image as ImageIcon, Terminal, Copy, Check, ZoomIn, ZoomOut } from 'lucide-react';
 import { createHighlighter, type HighlighterCore } from 'shiki';
 import { toPng, toBlob } from 'html-to-image';
 
@@ -45,6 +45,7 @@ export default function CodeVisualizer() {
   const [draggedLang, setDraggedLang] = useState<string | null>(null); // 현재 드래그 중인 언어
   const [dragOverLang, setDragOverLang] = useState<string | null>(null); // 드롭 타겟(눈금 표시) 언어
 
+  const [zoomScale, setZoomScale] = useState<number>(1); // 화면 줌(Zoom) 배율 상태
   // Shiki 하이라이터 인스턴스 및 렌더링된 HTML 상태
 const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
 // const [htmlOutput, setHtmlOutput] = useState<Record<string, string>>({});
@@ -163,6 +164,27 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleDownloadImage, handleCopyToClipboard]);
+
+// --- [스마트 줌: 마우스 휠 이벤트 제어] ---
+  useEffect(() => {
+    const container = document.getElementById('preview-container');
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault(); // 브라우저 전체 화면 줌인 방지
+        setZoomScale(prev => {
+          // 휠 방향에 따라 0.05배씩 증감, 최소 10% ~ 최대 300% 제한
+          const newScale = prev - (e.deltaY * 0.005);
+          return Math.min(Math.max(0.1, newScale), 3);
+        });
+      }
+    };
+
+    // passive: false 옵션을 주어야 e.preventDefault()가 정상 동작함
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
 
   // Tailwind 동적 클래스 매핑 (safelist 우회)
   const shadowClass = {
@@ -353,6 +375,12 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
         {/* 3. 미리보기부 (Preview Canvas) */}
           <section className="flex-1 bg-neutral-300 p-8 overflow-y-auto flex items-center justify-center min-w-0">
             
+{/* Zoom Wrapper (시각적 확대/축소만 담당하며 캡처 화질에는 영향을 주지 않음) */}
+            <div 
+              className="transition-transform duration-75 origin-center"
+              style={{ transform: `scale(${zoomScale})` }}
+            >
+
             {/* 캡처 대상 영역 (배경색 강제 부여로 투명화 방지 및 동적 패딩 적용) */}
             <div 
               id="capture-target" 
@@ -421,7 +449,34 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
                 </div>
               )}
 
+  </div>
+            </div> {/* Zoom Wrapper 닫기 */}
+
+            {/* 플로팅 줌(Zoom) 컨트롤러 */}
+            <div className="absolute bottom-6 right-6 flex items-center bg-white border border-neutral-200 rounded-lg shadow-lg overflow-hidden text-neutral-600 z-10">
+              <button 
+                onClick={() => setZoomScale(p => Math.max(0.1, p - 0.1))} 
+                className="p-2 hover:bg-neutral-100 transition-colors active:bg-neutral-200" 
+                title="축소"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setZoomScale(1)} 
+                className="px-3 py-2 text-xs font-bold hover:bg-neutral-100 transition-colors border-x border-neutral-200" 
+                title="100% 원본 크기"
+              >
+                {Math.round(zoomScale * 100)}%
+              </button>
+              <button 
+                onClick={() => setZoomScale(p => Math.min(3, p + 0.1))} 
+                className="p-2 hover:bg-neutral-100 transition-colors active:bg-neutral-200" 
+                title="확대"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
             </div>
+
           </section>
 
         </div>
