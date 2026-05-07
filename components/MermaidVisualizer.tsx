@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, Image as ImageIcon, Copy, Check, AlertCircle } from 'lucide-react';
+import { Settings, Image as ImageIcon, Copy, Check, AlertCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { toPng, toBlob } from 'html-to-image';
 import mermaid from 'mermaid';
 
@@ -31,6 +31,7 @@ export default function MermaidVisualizer() {
 
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [zoomScale, setZoomScale] = useState<number>(1); // 화면 줌(Zoom) 배율 상태
 
   // --- [1. Debounce 로직 (타이핑 시 렉 방지)] ---
   useEffect(() => {
@@ -148,6 +149,26 @@ export default function MermaidVisualizer() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleDownloadImage, handleCopyToClipboard]);
 
+
+  // --- [스마트 줌: 마우스 휠 이벤트 제어] ---
+  useEffect(() => {
+    const container = document.getElementById('mermaid-preview-container');
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        setZoomScale(prev => {
+          const newScale = prev - (e.deltaY * 0.005);
+          return Math.min(Math.max(0.1, newScale), 3);
+        });
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
+
   // Tailwind 동적 클래스 매핑 (safelist 우회)
   const shadowClass = {
     none: 'shadow-none', sm: 'shadow-sm', md: 'shadow-md',
@@ -253,17 +274,25 @@ export default function MermaidVisualizer() {
 
           {/* 미리보기부 */}
           <section 
-            className="flex-1 bg-neutral-300 p-8 overflow-y-auto flex items-center justify-center min-w-0"
+            id="mermaid-preview-container"
+            className="flex-1 bg-neutral-300 overflow-hidden relative flex items-center justify-center min-w-0"
             style={{ 
               // 투명 모드일 땐 포토샵 스타일의 체크무늬 패턴 렌더링 (캡처시엔 투명으로 나감)
               backgroundImage: isTransparent ? 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/ENAEU/8nJCxa1ICRzBDEB2PzAAAg3xAIl1Z4mAAAAABJRU5ErkJggg==")' : 'none'
             }}
           >
+            {/* Zoom Wrapper (시각적 확대/축소만 담당) */}
             <div 
-              id="mermaid-capture-target" 
-              className={`transition-all duration-300 flex flex-col ${isTransparent ? 'bg-transparent' : 'bg-[#e5e5e5]'}`}
-              style={{ padding: `${padding}px` }}
+              className="transition-transform duration-75 origin-center"
+              style={{ transform: `scale(${zoomScale})` }}
             >
+              {/* 캡처 대상 영역 (원본 해상도 유지) */}
+              <div 
+                id="mermaid-capture-target" 
+                className={`transition-all duration-300 flex flex-col shrink-0 ${isTransparent ? 'bg-transparent' : 'bg-[#e5e5e5]'}`}
+                style={{ padding: `${padding}px` }}
+              >
+                {/* ... (내부 다이어그램 렌더링 로직 유지) ... */}
               <div className={`flex flex-col rounded-xl overflow-hidden ${shadowClass} ${currentTheme === 'dark' ? 'bg-[#1e1e1e]' : 'bg-white'}`}>
                 
                 {/* Mac OS 스타일 타이틀바 */}
@@ -295,12 +324,40 @@ export default function MermaidVisualizer() {
                   )}
                 </div>
 
-              </div>
+             
             </div>
+            </div>
+            </div> {/* Zoom Wrapper 닫기 */}
+
+            {/* 플로팅 줌(Zoom) 컨트롤러 */}
+            <div className="absolute bottom-6 right-6 flex items-center bg-white border border-neutral-200 rounded-lg shadow-lg overflow-hidden text-neutral-600 z-10">
+              <button 
+                onClick={() => setZoomScale(p => Math.max(0.1, p - 0.1))} 
+                className="p-2 hover:bg-neutral-100 transition-colors active:bg-neutral-200" 
+                title="축소"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setZoomScale(1)} 
+                className="px-3 py-2 text-xs font-bold hover:bg-neutral-100 transition-colors border-x border-neutral-200" 
+                title="100% 원본 크기"
+              >
+                {Math.round(zoomScale * 100)}%
+              </button>
+              <button 
+                onClick={() => setZoomScale(p => Math.min(3, p + 0.1))} 
+                className="p-2 hover:bg-neutral-100 transition-colors active:bg-neutral-200" 
+                title="확대"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </div>
+
           </section>
 
         </div>
-      </main>
+      </main> 
     </div>
   );
 }
