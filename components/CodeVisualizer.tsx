@@ -275,11 +275,6 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
            </div>
 
 
-           <label className="flex items-center gap-2 cursor-pointer mt-2 border-b pb-4">
-             <input type="checkbox" checked={showConsole} onChange={() => setShowConsole(!showConsole)} className="rounded text-blue-500" />
-             <span className="text-sm font-medium">실행 결과 (콘솔) 표시</span>
-           </label>
-
            {/* 세부 디자인 옵션 */}
            <div className="flex flex-col gap-3 pt-2">
              <h2 className="text-sm font-semibold text-neutral-500">디자인 설정</h2>
@@ -308,6 +303,12 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
                <input type="checkbox" checked={showWindowFrame} onChange={() => setShowWindowFrame(!showWindowFrame)} className="rounded text-blue-500" />
                <span>Mac 스타일 창 버튼 표시</span>
              </label>
+
+           <label className="flex items-center gap-2 cursor-pointer mt-2 border-b pb-4">
+             <input type="checkbox" checked={showConsole} onChange={() => setShowConsole(!showConsole)} className="rounded text-blue-500" />
+             <span className="text-sm font-medium">실행 결과 (콘솔) 표시</span>
+           </label>
+
            </div>
         </section>
       </aside>
@@ -383,6 +384,7 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
             id="preview-container" // Mermaid의 경우 'mermaid-preview-container'
             className="flex-1 bg-neutral-300 overflow-auto relative flex"
           >
+
             
             {/* Zoom Wrapper (CSS zoom을 사용하여 실제 레이아웃 크기를 변경해 스크롤바 활성화) */}
             {/* 💡 isExporting 상태일 때는 강제로 100%(1)로 되돌려 캡처 화질을 100% 원본으로 보장 */}
@@ -448,7 +450,7 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
               )}
 
               {/* 콘솔 목업 렌더링 영역 */}
-              {showConsole && selectedLanguages.length > 0 && (
+              {showConsole && (
                 <div className="mt-2 rounded-xl overflow-hidden shadow-2xl bg-[#1e1e1e] border border-neutral-700">
                    <div className="flex items-center px-4 py-2 bg-black/40 text-neutral-400 text-xs font-mono gap-2">
                      <Terminal className="w-3 h-3" /> Output
