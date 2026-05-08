@@ -393,18 +393,18 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
               style={{ zoom: isExporting ? 1 : zoomScale }}
             >
               {/* 캡처 대상 영역 */}
-              <div 
-                id="capture-target"
-                className="w-full transition-all duration-300 flex flex-col shrink-0 gap-4 bg-[#e5e5e5]"
-                style={{ padding: `${padding}px`, maxWidth: `${containerWidth}px` }}
-              >
-                 
-               {/* 코드 블록 그리드 */}
+            <div 
+              id="capture-target"
+              className="transition-all duration-300 flex flex-col shrink-0 gap-4 bg-[#e5e5e5]"
+              style={{ padding: `${padding}px`, width: `${containerWidth}px` }}
+            >
+               
+             {/* 코드 블록 그리드 */}
               {!highlighter ? (
-                <div className="text-center text-neutral-500 font-medium">Shiki 엔진 로딩 중...</div>
-              ) : (
-                <div className={`grid gap-6 ${getContainerClass()}`}>
-                  {selectedLanguages.map((lang, index) => (
+              <div className="text-center text-neutral-500 font-medium">Shiki 엔진 로딩 중...</div>
+            ) : selectedLanguages.length > 0 ? (
+              <div className={`grid gap-6 ${getContainerClass()}`}>
+                {selectedLanguages.map((lang, index) => (
                     <div 
                       key={lang} 
                       draggable={true}
@@ -444,17 +444,17 @@ const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
                         className="flex-1 text-[14px] leading-relaxed font-mono [&>pre]:!bg-transparent [&>pre]:p-4 [&>pre]:m-0 [&>pre]:whitespace-pre-wrap [&>pre]:break-all [&_code]:[counter-reset:step] [&_.line::before]:content-[counter(step)] [&_.line::before]:[counter-increment:step] [&_.line::before]:mr-4 [&_.line::before]:inline-block [&_.line::before]:w-8 [&_.line::before]:whitespace-nowrap [&_.line::before]:text-right [&_.line::before]:opacity-50"
                         dangerouslySetInnerHTML={{ __html: htmlOutput[lang] || '' }}
                       />
-                    </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
               {/* 콘솔 목업 렌더링 영역 */}
-              {showConsole && (
-                <div className="mt-2 rounded-xl overflow-hidden shadow-2xl bg-[#1e1e1e] border border-neutral-700">
-                   <div className="flex items-center px-4 py-2 bg-black/40 text-neutral-400 text-xs font-mono gap-2">
-                     <Terminal className="w-3 h-3" /> Output
-                   </div>
+{showConsole && (
+              <div className={`rounded-xl overflow-hidden shadow-2xl bg-[#1e1e1e] border border-neutral-700 ${selectedLanguages.length > 0 ? 'mt-2' : ''}`}>
+                 <div className="flex items-center px-4 py-2 bg-black/40 text-neutral-400 text-xs font-mono gap-2">
+                   <Terminal className="w-3 h-3" /> Output
+                 </div>
                    <div className="p-4 text-[14px] font-mono whitespace-pre-wrap text-neutral-300">
                      {consoleData}
                    </div>
