@@ -92,12 +92,28 @@ export default function MermaidVisualizer() {
     backgroundColor: isTransparent ? 'rgba(0,0,0,0)' : '#e5e5e5', 
   });
 
+// 💡 새롭게 추가되는 SVG 저장 함수
+  const handleDownloadSVG = useCallback(() => {
+    if (!svgContent || renderError) return;
+    
+    const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'stepcode_diagram.svg';
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [svgContent, renderError]);
+
   const handleDownloadImage = useCallback(async () => {
     if (isExporting || renderError) return;
     const node = document.getElementById('mermaid-capture-target');
     if (!node) return;
     try {
       setIsExporting(true);
+      // 💡 핵심: 줌 배율이 100%로 초기화된 DOM이 반영될 때까지 대기 (화질 보장)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      
       const dataUrl = await toPng(node, getCaptureOptions());
       const link = document.createElement('a');
       link.download = 'stepcode_diagram.png';
@@ -236,6 +252,16 @@ export default function MermaidVisualizer() {
         
         {/* 상단 툴바 */}
         <header className="h-14 bg-white border-b border-neutral-200 flex items-center justify-end px-6 shrink-0 gap-2">
+          {/* 💡 추가: SVG 저장 버튼 (고화질 벡터) */}
+          <button 
+            onClick={handleDownloadSVG}
+            disabled={isExporting || !!renderError}
+            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+          >
+            <ImageIcon className="w-4 h-4" />
+            벡터로 저장 (SVG)
+          </button>
+          
           <button 
             onClick={handleCopyToClipboard}
             disabled={isExporting || !!renderError}
@@ -275,18 +301,17 @@ export default function MermaidVisualizer() {
           {/* 미리보기부 */}
           <section 
             id="mermaid-preview-container"
-            className="flex-1 bg-neutral-300 overflow-hidden relative flex items-center justify-center min-w-0"
+            className="flex-1 bg-neutral-300 overflow-auto relative flex" // 💡 overflow-auto 및 flex 정렬 수정
             style={{ 
-              // 투명 모드일 땐 포토샵 스타일의 체크무늬 패턴 렌더링 (캡처시엔 투명으로 나감)
               backgroundImage: isTransparent ? 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/ENAEU/8nJCxa1ICRzBDEB2PzAAAg3xAIl1Z4mAAAAABJRU5ErkJggg==")' : 'none'
             }}
           >
-            {/* Zoom Wrapper (시각적 확대/축소만 담당) */}
+            {/* Zoom Wrapper (CSS zoom을 사용하여 실제 레이아웃 크기를 변경) */}
             <div 
-              className="transition-transform duration-75 origin-center"
-              style={{ transform: `scale(${zoomScale})` }}
+              className="m-auto p-8 transition-all duration-75" // 💡 m-auto로 중앙 정렬 및 여백 확보
+              style={{ zoom: isExporting ? 1 : zoomScale }} // 💡 캡처 시에만 100%로 강제 고정
             >
-              {/* 캡처 대상 영역 (원본 해상도 유지) */}
+              {/* 캡처 대상 영역 */}
               <div 
                 id="mermaid-capture-target" 
                 className={`transition-all duration-300 flex flex-col shrink-0 ${isTransparent ? 'bg-transparent' : 'bg-[#e5e5e5]'}`}
