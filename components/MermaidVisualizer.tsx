@@ -96,7 +96,12 @@ export default function MermaidVisualizer() {
   const handleDownloadSVG = useCallback(() => {
     if (!svgContent || renderError) return;
     
-    const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+    // SVG는 XML 기반이므로 <foreignObject> 내부의 HTML <br> 태그가
+    // XML 파서에서 "tag mismatch" 에러를 유발합니다.
+    // 저장 전에 <br> → <br/> 로 치환하여 well-formed XML로 수정합니다.
+    const fixedSvg = svgContent.replace(/<br>/gi, '<br/>');
+
+    const blob = new Blob([fixedSvg], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
