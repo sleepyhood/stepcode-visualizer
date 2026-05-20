@@ -70,7 +70,7 @@ export default function MermaidVisualizer() {
           setSvgContent(svg);
           setRenderError(null);
         }
-      } catch (error) {
+      } catch {
         if (isMounted) {
           setRenderError('다이어그램 문법을 확인해 주세요.');
           // Mermaid 라이브러리가 강제로 document.body에 추가하는 에러 툴팁 DOM 정리
@@ -87,10 +87,10 @@ export default function MermaidVisualizer() {
 
   // --- [3. 캡처 및 내보내기 로직] ---
   // 투명 배경일 땐 명시적으로 rgba(0,0,0,0)을 넘겨 투명화, 아닐 경우 부모 div색상 보존
-  const getCaptureOptions = () => ({
+  const getCaptureOptions = useCallback(() => ({
     pixelRatio: 2,
     backgroundColor: isTransparent ? 'rgba(0,0,0,0)' : '#e5e5e5', 
-  });
+  }), [isTransparent]);
 
 // 💡 새롭게 추가되는 SVG 저장 함수
   const handleDownloadSVG = useCallback(() => {
@@ -129,7 +129,7 @@ export default function MermaidVisualizer() {
     } finally {
       setIsExporting(false);
     }
-  }, [isExporting, renderError, isTransparent]);
+  }, [getCaptureOptions, isExporting, renderError]);
 
   const handleCopyToClipboard = useCallback(async () => {
     if (isExporting || renderError) return;
@@ -152,7 +152,7 @@ export default function MermaidVisualizer() {
     } finally {
       setIsExporting(false);
     }
-  }, [isExporting, renderError, isTransparent]);
+  }, [getCaptureOptions, isExporting, renderError]);
 
   // --- [단축키 연동] ---
   useEffect(() => {

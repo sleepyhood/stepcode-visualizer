@@ -1,16 +1,15 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Image as ImageIcon, Copy, Check, Code, Download } from 'lucide-react';
+import { Copy, Check, Code, Download } from 'lucide-react';
 import { Annotation } from '../types';
 import { serializeToComment } from '../buildPrompt';
-import { toPng, toBlob } from 'html-to-image';
+import { getFontEmbedCSS, toBlob, toPng } from 'html-to-image';
 
 interface ExportPanelProps {
     annotations: Annotation[];
-    zoomScale: number;
-    onZoomReset: () => void;
     onPrev: () => void;
+    onPrepareCapture: () => Promise<() => Promise<void>>;
     captureTargetId?: string;
 }
 
@@ -18,9 +17,8 @@ type CopyKey = 'png' | 'json' | 'comment';
 
 export default function ExportPanel({
     annotations,
-    zoomScale,
-    onZoomReset,
     onPrev,
+    onPrepareCapture,
     captureTargetId = 'capture-target',
 }: ExportPanelProps) {
     const [exporting, setExporting] = useState(false);
@@ -31,52 +29,52 @@ export default function ExportPanel({
         setTimeout(() => setCopied(null), 2000);
     };
 
-    // 캡처 전 줌 1x 강제 → 캡처 후 복원
-    const withZoomReset = async <T,>(fn: () => Promise<T>): Promise<T> => {
-        const prevZoom = zoomScale;
-        onZoomReset();
-        await new Promise((r) => setTimeout(r, 120));
-        try {
-            return await fn();
-        } finally {
-            // 복원은 onZoomReset 이후 실제 state가 변해야 하므로 caller가 처리
-            void prevZoom; // 사용됨을 TS에 알림
-        }
-    };
+    const buildCaptureOptions = useCallback(async (node: HTMLElement) => ({
+        pixelRatio: 2,
+        cacheBust: true,
+        skipAutoScale: true,
+        preferredFontFormat: 'woff2' as const,
+        backgroundColor: '#d4d4d8',
+        fontEmbedCSS: await getFontEmbedCSS(node),
+    }), []);
 
     const handleDownloadPng = useCallback(async () => {
         if (exporting) return;
         setExporting(true);
-        onZoomReset();
-        await new Promise((r) => setTimeout(r, 120));
+        const restoreCapture = await onPrepareCapture();
         try {
             const node = document.getElementById(captureTargetId);
             if (!node) return;
-            const url = await toPng(node, { pixelRatio: 2 });
+            const url = await toPng(node, await buildCaptureOptions(node));
             const a = document.createElement('a');
             a.download = 'code_guide.png';
             a.href = url;
             a.click();
         } catch (e) { console.error(e); }
-        finally { setExporting(false); }
-    }, [exporting, captureTargetId, onZoomReset]);
+        finally {
+            await restoreCapture();
+            setExporting(false);
+        }
+    }, [buildCaptureOptions, captureTargetId, exporting, onPrepareCapture]);
 
     const handleCopyPng = useCallback(async () => {
         if (exporting) return;
         setExporting(true);
-        onZoomReset();
-        await new Promise((r) => setTimeout(r, 120));
+        const restoreCapture = await onPrepareCapture();
         try {
             const node = document.getElementById(captureTargetId);
             if (!node) return;
-            const blob = await toBlob(node, { pixelRatio: 2 });
+            const blob = await toBlob(node, await buildCaptureOptions(node));
             if (blob) {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
                 markCopied('png');
             }
         } catch (e) { console.error(e); }
-        finally { setExporting(false); }
-    }, [exporting, captureTargetId, onZoomReset]);
+        finally {
+            await restoreCapture();
+            setExporting(false);
+        }
+    }, [buildCaptureOptions, captureTargetId, exporting, onPrepareCapture]);
 
     const handleCopyJson = useCallback(async () => {
         const json = JSON.stringify(annotations, null, 2);

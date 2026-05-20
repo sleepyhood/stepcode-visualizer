@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Eye, EyeOff, Trash2, Edit2, Check, X } from 'lucide-react';
-import { Annotation, COLOR_BG_CLASS } from '../types';
+import { Eye, EyeOff, Trash2, Edit2, Check, X, Settings2 } from 'lucide-react';
+import { Annotation, AnnotationAnchor, COLOR_BG_CLASS } from '../types';
+import { getAnchorSelectOptions, resolveAnchorSelection } from '../annotation-utils';
 
 interface ReviewPanelProps {
     annotations: Annotation[];
@@ -11,6 +12,11 @@ interface ReviewPanelProps {
     onUpdateComment: (id: string, comment: string) => void;
     onNext: () => void;
     onPrev: () => void;
+    
+    // 중복 앵커 제어용 추가 Props
+    sourceCode: string;
+    consoleOutput: string;
+    onUpdateAnchor: (id: string, type: 'from' | 'to', anchor: AnnotationAnchor) => void;
 }
 
 export default function ReviewPanel({
@@ -20,6 +26,9 @@ export default function ReviewPanel({
     onUpdateComment,
     onNext,
     onPrev,
+    sourceCode,
+    consoleOutput,
+    onUpdateAnchor,
 }: ReviewPanelProps) {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editDraft, setEditDraft] = useState('');
@@ -51,77 +60,142 @@ export default function ReviewPanel({
             </div>
 
             {/* 어노테이션 목록 */}
-            <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-1">
+            <div className="flex flex-col gap-2.5 max-h-96 overflow-y-auto pr-1">
                 {annotations.length === 0 ? (
                     <p className="text-xs text-neutral-400 text-center py-6">
                         등록된 가이드라인이 없습니다.<br />
                         <span className="text-[10px]">이전 단계로 돌아가 AI에게 분석을 요청하세요.</span>
                     </p>
                 ) : (
-                    annotations.map((anno) => (
-                        <div
-                            key={anno.id}
-                            className={`rounded-lg border text-xs transition-all ${anno.visible ? 'bg-white border-neutral-200' : 'bg-neutral-50 border-neutral-100 opacity-60'}`}
-                        >
-                            {/* 헤더 행 */}
-                            <div className="flex items-center gap-2 px-2.5 py-2">
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${COLOR_BG_CLASS[anno.color]}`} />
-                                <span className="font-mono font-bold uppercase text-[9px] bg-neutral-100 px-1 py-0.5 rounded text-neutral-500">
-                                    {anno.type}
-                                </span>
-                                <span className="truncate text-neutral-600 flex-1 font-medium text-[11px]">
-                                    {anno.from.text}
-                                    {anno.to && <span className="text-neutral-400"> → {anno.to.text}</span>}
-                                </span>
-                                <div className="flex items-center gap-0.5 shrink-0">
-                                    <button
-                                        onClick={() => startEdit(anno)}
-                                        className="p-1 hover:bg-blue-50 rounded text-neutral-400 hover:text-blue-500 transition-colors"
-                                        title="설명 편집"
-                                    >
-                                        <Edit2 className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                        onClick={() => onToggleVisibility(anno.id)}
-                                        className="p-1 hover:bg-neutral-100 rounded text-neutral-400 transition-colors"
-                                        title={anno.visible ? '숨기기' : '표시'}
-                                    >
-                                        {anno.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                                    </button>
-                                    <button
-                                        onClick={() => onDelete(anno.id)}
-                                        className="p-1 hover:bg-red-50 rounded text-neutral-400 hover:text-red-500 transition-colors"
-                                        title="삭제"
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                    </button>
-                                </div>
-                            </div>
+                    annotations.map((anno, idx) => {
+                        const fromOptions = getAnchorSelectOptions(sourceCode, consoleOutput, anno.from);
+                        const toOptions = anno.to
+                            ? getAnchorSelectOptions(sourceCode, consoleOutput, anno.to)
+                            : [];
+                        const fromValue = `${anno.from.line ?? fromOptions[0]?.line ?? 1}:${anno.from.occurrenceIndex ?? 0}`;
+                        const toValue = `${anno.to?.line ?? toOptions[0]?.line ?? 1}:${anno.to?.occurrenceIndex ?? 0}`;
 
-                            {/* 설명 편집 인라인 폼 */}
-                            {editingId === anno.id ? (
-                                <div className="px-2.5 pb-2 flex gap-1">
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        value={editDraft}
-                                        onChange={(e) => setEditDraft(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); }}
-                                        placeholder="설명 문구를 입력하세요..."
-                                        className="flex-1 text-xs border border-blue-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
-                                    />
-                                    <button onClick={commitEdit} className="p-1 bg-green-500 text-white rounded hover:bg-green-600">
-                                        <Check className="w-3 h-3" />
-                                    </button>
-                                    <button onClick={cancelEdit} className="p-1 bg-neutral-200 text-neutral-600 rounded hover:bg-neutral-300">
-                                        <X className="w-3 h-3" />
-                                    </button>
+                        return (
+                            <div
+                                key={anno.id}
+                                className={`rounded-lg border text-xs p-2.5 transition-all ${anno.visible ? 'bg-white border-neutral-200' : 'bg-neutral-50 border-neutral-100 opacity-60'}`}
+                            >
+                                {/* 헤더 행 */}
+                                <div className="flex items-center gap-2 mb-1.5">
+                                    <span className="w-5 h-5 rounded-full bg-neutral-100 text-neutral-600 text-[10px] font-bold flex items-center justify-center shrink-0">
+                                        {idx + 1}
+                                    </span>
+                                    <span className={`w-2 h-2 rounded-full shrink-0 ${COLOR_BG_CLASS[anno.color]}`} />
+                                    <span className="font-mono font-bold uppercase text-[8px] tracking-wider bg-neutral-100 px-1 py-0.5 rounded text-neutral-500 shrink-0">
+                                        {anno.type}
+                                    </span>
+                                    <span className="truncate text-neutral-600 flex-1 font-medium text-[11px]">
+                                        {anno.from.text}
+                                        {anno.to && <span className="text-neutral-400"> → {anno.to.text}</span>}
+                                    </span>
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                        <button
+                                            onClick={() => startEdit(anno)}
+                                            className="p-1 hover:bg-blue-50 rounded text-neutral-400 hover:text-blue-500 transition-colors"
+                                            title="설명 편집"
+                                        >
+                                            <Edit2 className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                            onClick={() => onToggleVisibility(anno.id)}
+                                            className="p-1 hover:bg-neutral-100 rounded text-neutral-400 transition-colors"
+                                            title={anno.visible ? '숨기기' : '표시'}
+                                        >
+                                            {anno.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                                        </button>
+                                        <button
+                                            onClick={() => onDelete(anno.id)}
+                                            className="p-1 hover:bg-red-50 rounded text-neutral-400 hover:text-red-500 transition-colors"
+                                            title="삭제"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
                                 </div>
-                            ) : anno.comment ? (
-                                <p className="px-2.5 pb-2 text-[10px] text-neutral-500 leading-tight">{anno.comment}</p>
-                            ) : null}
-                        </div>
-                    ))
+
+                                {/* 설명 본문 또는 편집 폼 */}
+                                {editingId === anno.id ? (
+                                    <div className="flex gap-1 mb-2">
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            value={editDraft}
+                                            onChange={(e) => setEditDraft(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') cancelEdit(); }}
+                                            placeholder="설명 문구를 입력하세요..."
+                                            className="flex-1 text-xs border border-blue-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500"
+                                        />
+                                        <button onClick={commitEdit} className="p-1 bg-green-500 text-white rounded hover:bg-green-600">
+                                            <Check className="w-3 h-3" />
+                                        </button>
+                                        <button onClick={cancelEdit} className="p-1 bg-neutral-200 text-neutral-600 rounded hover:bg-neutral-300">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ) : anno.comment ? (
+                                    <p className="text-[10px] text-neutral-500 leading-tight mb-2 pl-7">{anno.comment}</p>
+                                ) : null}
+
+                                {/* 🎯 중복 타겟 튜너 패널 */}
+                                {anno.visible && (fromOptions.length > 1 || toOptions.length > 1) && (
+                                    <div className="mt-2 pt-2 border-t border-dashed border-neutral-100 flex flex-col gap-1 text-[10px] text-neutral-400 pl-7">
+                                        <div className="flex items-center gap-1 font-semibold text-neutral-500 mb-0.5">
+                                            <Settings2 className="w-3 h-3" /> 앵커 순서 미세조정
+                                        </div>
+                                        
+                                        {/* 출발지(From) 중복 조정 */}
+                                        {fromOptions.length > 1 && (
+                                            <div className="flex items-center justify-between">
+                                                <span>출발 단어 &apos;{anno.from.text}&apos;</span>
+                                                <select
+                                                    value={fromValue}
+                                                    onChange={(e) => onUpdateAnchor(
+                                                        anno.id,
+                                                        'from',
+                                                        resolveAnchorSelection(sourceCode, consoleOutput, anno.from, e.target.value),
+                                                    )}
+                                                    className="border border-neutral-200 rounded px-1.5 py-0.5 bg-white text-neutral-700 outline-none text-[9px] font-medium"
+                                                >
+                                                    {fromOptions.map((option) => (
+                                                        <option key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {/* 목적지(To) 중복 조정 */}
+                                        {anno.to && toOptions.length > 1 && (
+                                            <div className="flex items-center justify-between mt-1">
+                                                <span>도착 단어 &apos;{anno.to.text}&apos;</span>
+                                                <select
+                                                    value={toValue}
+                                                    onChange={(e) => onUpdateAnchor(
+                                                        anno.id,
+                                                        'to',
+                                                        resolveAnchorSelection(sourceCode, consoleOutput, anno.to, e.target.value),
+                                                    )}
+                                                    className="border border-neutral-200 rounded px-1.5 py-0.5 bg-white text-neutral-700 outline-none text-[9px] font-medium"
+                                                >
+                                                    {toOptions.map((option) => (
+                                                        <option key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
                 )}
             </div>
 

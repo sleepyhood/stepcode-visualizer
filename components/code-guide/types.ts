@@ -11,6 +11,12 @@ export interface AnnotationAnchor {
     lang?: TargetLang;
     line?: number;
     text: string;
+    occurrenceIndex?: number; // 동일 텍스트 중 몇 번째 토큰을 대상으로 할지 (0-based, 기본값 0)
+}
+
+export interface AnnotationOffset {
+    x: number;
+    y: number;
 }
 
 export interface Annotation {
@@ -19,6 +25,8 @@ export interface Annotation {
     visible: boolean;
     color: AnnotationColor;
     comment?: string;
+    boxOffset?: AnnotationOffset; // box 라벨의 좌상단 위치를 아트보드 좌표계 기준으로 미세 조정
+    labelOffset?: AnnotationOffset; // arrow 라벨의 중심 위치를 아트보드 좌표계 기준으로 미세 조정
     from: AnnotationAnchor;
     to?: AnnotationAnchor;
 }

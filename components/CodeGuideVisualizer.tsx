@@ -3,17 +3,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { createHighlighter, type HighlighterCore } from 'shiki';
-import { useXarrow } from 'react-xarrows';
 
 // 타입 & 유틸
 import {
     Annotation,
+    AnnotationAnchor,
     TargetLang,
     Step,
     DEFAULT_SOURCE_CODE,
     DEFAULT_CONSOLE_OUTPUT,
 } from './code-guide/types';
 import { buildPrompt } from './code-guide/buildPrompt';
+import { normalizeAnnotations } from './code-guide/annotation-utils';
 
 // 패널
 import StepIndicator from './code-guide/panels/StepIndicator';
@@ -41,7 +42,6 @@ export default function CodeGuideVisualizer() {
     // --- 캔버스 ---
     const [zoomScale, setZoomScale] = useState<number>(1);
     const [isExporting, setIsExporting] = useState<boolean>(false);
-    const [anchorElements, setAnchorElements] = useState<Record<string, HTMLElement>>({});
 
     // --- Shiki 초기화 ---
     const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
@@ -52,47 +52,6 @@ export default function CodeGuideVisualizer() {
         }).then(setHighlighter);
     }, []);
 
-    const updateXarrow = useXarrow();
-
-    // --- DOM ID 매핑 (앵커 추적) ---
-    useEffect(() => {
-        const mapping: Record<string, HTMLElement> = {};
-        const getElement = (target: string, lang?: string, line?: number, text?: string) => {
-            if (target === 'console') {
-                return Array.from(document.querySelectorAll(
-                    `[data-target="console"][data-token-text="${text}"]`
-                ))[0] as HTMLElement | undefined;
-            }
-            if (target === 'code') {
-                return Array.from(document.querySelectorAll(
-                    `[data-target="code"][data-lang="${lang}"][data-line="${line}"] [data-token-text="${text}"]`
-                ))[0] as HTMLElement | undefined;
-            }
-            return undefined;
-        };
-
-        annotations.forEach(anno => {
-            if (!anno.visible) return;
-            const fromId = `anchor-${anno.id}-from`;
-            const elFrom = getElement(anno.from.target, anno.from.lang, anno.from.line, anno.from.text);
-            if (elFrom) { elFrom.id = fromId; mapping[fromId] = elFrom; }
-            if (anno.to) {
-                const toId = `anchor-${anno.id}-to`;
-                const elTo = getElement(anno.to.target, anno.to.lang, anno.to.line, anno.to.text);
-                if (elTo) { elTo.id = toId; mapping[toId] = elTo; }
-            }
-        });
-        setAnchorElements(mapping);
-        updateXarrow();
-    }, [annotations, sourceCode, consoleOutput, language, zoomScale]);
-
-    // 리사이즈 이벤트
-    useEffect(() => {
-        window.addEventListener('resize', updateXarrow);
-        return () => window.removeEventListener('resize', updateXarrow);
-    }, [updateXarrow]);
-
-    // 마우스 휠 줌
     useEffect(() => {
         const container = document.getElementById('guide-preview-container');
         if (!container) return;
@@ -118,8 +77,8 @@ export default function CodeGuideVisualizer() {
 
     // --- 어노테이션 핸들러 ---
     const handleAnnotationsLoaded = useCallback((loaded: Annotation[]) => {
-        setAnnotations(loaded);
-    }, []);
+        setAnnotations(normalizeAnnotations(sourceCode, consoleOutput, loaded));
+    }, [sourceCode, consoleOutput]);
 
     const handleToggleVisibility = useCallback((id: string) => {
         setAnnotations(prev => prev.map(a => a.id === id ? { ...a, visible: !a.visible } : a));
@@ -132,6 +91,36 @@ export default function CodeGuideVisualizer() {
     const handleUpdateComment = useCallback((id: string, comment: string) => {
         setAnnotations(prev => prev.map(a => a.id === id ? { ...a, comment: comment || undefined } : a));
     }, []);
+
+    const handleUpdateAnchor = useCallback((id: string, type: 'from' | 'to', nextAnchor: AnnotationAnchor) => {
+        setAnnotations(prev => prev.map(a => {
+            if (a.id !== id) return a;
+            if (type === 'from') {
+                return { ...a, from: nextAnchor };
+            } else if (a.to) {
+                return { ...a, to: nextAnchor };
+            }
+            return a;
+        }));
+    }, []);
+
+    const prepareExportCapture = useCallback(async () => {
+        const previousZoom = zoomScale;
+        setIsExporting(true);
+        setZoomScale(1);
+
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+
+        return async () => {
+            setZoomScale(previousZoom);
+            setIsExporting(false);
+            await new Promise<void>((resolve) => {
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            });
+        };
+    }, [zoomScale]);
 
     // 현재 단계에 맞는 패널 제목
     const panelTitle: Record<Step, string> = {
@@ -191,15 +180,17 @@ export default function CodeGuideVisualizer() {
                             onUpdateComment={handleUpdateComment}
                             onNext={() => completeStep(3, 4)}
                             onPrev={() => goToStep(2)}
+                            sourceCode={sourceCode}
+                            consoleOutput={consoleOutput}
+                            onUpdateAnchor={handleUpdateAnchor}
                         />
                     )}
 
                     {activeStep === 4 && (
                         <ExportPanel
                             annotations={annotations}
-                            zoomScale={zoomScale}
-                            onZoomReset={() => setZoomScale(1)}
                             onPrev={() => goToStep(3)}
+                            onPrepareCapture={prepareExportCapture}
                         />
                     )}
                 </div>
@@ -231,8 +222,6 @@ export default function CodeGuideVisualizer() {
                         highlighter={highlighter}
                         zoomScale={zoomScale}
                         isExporting={isExporting}
-                        anchorElements={anchorElements}
-                        onScroll={updateXarrow}
                     />
                 </div>
             </main>
